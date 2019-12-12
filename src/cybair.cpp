@@ -3,7 +3,7 @@
 #include <Adafruit_SGP30.h>
 #include <Wire.h>
 
-uint8_t font[10][4] = {
+static uint8_t font[10][4] = {
 	{
 		0b00001110,
 		0b00010001,
@@ -100,22 +100,23 @@ static bool sgp30_read(void)
 	return sgp.IAQmeasure() && sgp.IAQmeasureRaw() && (sgp.eCO2 != 400 || sgp.TVOC != 0);
 }
 
-void show_digit(int x)
+static void show_digit(int x)
 {
-	Serial.print("showing digit ");
-	Serial.print(x);
-	Serial.println("!");
-
 	if (x < 0) {
 		return;
 	}
 
 	for (int row = 0; row < ROWS; row++) {
-		uint8_t m = font[x][row];
+		uint8_t n = font[x][row];
 		for (int col = 0; col < COLS; col++) {
-			strip.setPixelColor(col + row * COLS, m & (1U << col) ? indigo : off);
+			bool show = n & (1U << (COLS - col - 1));
+			strip.setPixelColor(col + row * COLS, show ? indigo : off);
+			Serial.print(show ? "X " : "  ");
 		}
+		Serial.println("");
 	}
+	Serial.println("");
+	Serial.println("");
 }
 
 void calc_digits(int x, int *digits)
@@ -156,7 +157,7 @@ void calc_digits(int x, int *digits)
 void setup(void)
 {
 	Serial.begin(9600);
-	Serial.println("Hello world");
+	Serial.println("\n== begin ==");
 	frame = 0;
 	cur_state = STATE_READ;
 
@@ -198,28 +199,27 @@ void setup(void)
 void loop(void)
 {
 	uint32_t t;
-	uint32_t d;
+	uint32_t d, piece;
 
-	strip.clear();
-
-	switch (cur_state) {
-	case STATE_WAIT:
+	if (cur_state == STATE_WAIT) {
 		t = millis();
 		if (t >= next_frame) {
 			cur_state = next_state;
 			next_frame = t + FRAME_TIME;
 		}
-		break;
+		return;
+	}
 
+	strip.clear();
+
+	switch (cur_state) {
 	case STATE_READ:
 		if (sgp30_read()) {
 			uint16_t hue = map(max(sgp.eCO2, (uint16_t) BEST_CO2), BEST_CO2, WORST_CO2, BEST_HUE, WORST_HUE);
 			co2_color = strip.gamma32(strip.ColorHSV(hue, 255, BRIGHTNESS));
-			Serial.print("Calculating digits for eCO2 level ");
-			Serial.print(sgp.eCO2);
-			Serial.println("");
 			calc_digits(sgp.eCO2, co2_digits);
-			Serial.print("digits are: ");
+			Serial.print(sgp.eCO2);
+			Serial.print(" -> ");
 			Serial.print(co2_digits[0]);
 			Serial.print(" ");
 			Serial.print(co2_digits[1]);
@@ -236,32 +236,24 @@ void loop(void)
 
 	case STATE_DISPLAY:
 		d = frame - anim_start_frame;
+
+		/* after this frame, wait for the next one */
 		next_state = cur_state;
+		cur_state = STATE_WAIT;
 
 		/* some gaps between the numbers */
-		if (d % 32 > 28) {
+		if (d % 32 < 28) {
 			; /* wait */
 
-		} else if (d < 32 * 1) {
-			show_digit(co2_digits[0]);
+		/* show a digit */
+		} else if ((piece = d / 32) < 5) {
+			show_digit(co2_digits[piece]);
 
-		} else if (d < 32 * 2) {
-			show_digit(co2_digits[1]);
-
-		} else if (d < 32 * 3) {
-			show_digit(co2_digits[2]);
-
-		} else if (d < 32 * 4) {
-			show_digit(co2_digits[3]);
-
-		} else if (d < 32 * 5) {
-			show_digit(co2_digits[4]);
-
-		} else if (d >= 256) {
-			next_state = STATE_READ;
+		/* read another one */
+		} else if (piece >= 8) {
+			cur_state = STATE_READ;
 		}
 
-		cur_state = STATE_WAIT;
 		frame++;
 		break;
 	}
