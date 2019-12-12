@@ -1,0 +1,7 @@
+Because of the following issue:
+
+https://github.com/adafruit/Adafruit_NeoPixel/issues/139
+
+a workaround using RMT is required. It's not yet available upstream:
+
+https://github.com/zostay/Mysook/tree/master/device/lib/Adafruit_NeoPixel_RMT
