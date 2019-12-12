@@ -1,7 +1,7 @@
-.PHONY = all
+.PHONY: all
 all:
 	platformio run
 
-.PHONY = upload
+.PHONY: upload
 upload:
 	platformio run -t upload
