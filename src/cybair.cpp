@@ -3,56 +3,67 @@
 #include <Adafruit_SGP30.h>
 #include <Wire.h>
 
-uint8_t font[] = {
-	0b00001110,
-	0b00010001,
-	0b00010001,
-	0b00001110,
-
-	0b00010010,
-	0b00010001,
-	0b00011111,
-	0b00010000,
-
-	0b00011000,
-	0b00010101,
-	0b00010101,
-	0b00010010,
-
-	0b00001010,
-	0b00010001,
-	0b00010101,
-	0b00001110,
-
-	0b00000110,
-	0b00000101,
-	0b00000100,
-	0b00011111,
-
-	0b00010111,
-	0b00010101,
-	0b00010101,
-	0b00001001,
-
-	0b00001110,
-	0b00010101,
-	0b00010101,
-	0b00001000,
-
-	0b00010001,
-	0b00001001,
-	0b00000101,
-	0b00000011,
-
-	0b00001010,
-	0b00010101,
-	0b00010101,
-	0b00001010,
-
-	0b00000010,
-	0b00000101,
-	0b00000101,
-	0b00011110,
+uint8_t font[10][4] = {
+	{
+		0b00001110,
+		0b00010001,
+		0b00010001,
+		0b00001110,
+	},
+	{
+		0b00010010,
+		0b00010001,
+		0b00011111,
+		0b00010000,
+	},
+	{
+		0b00011000,
+		0b00010101,
+		0b00010101,
+		0b00010010,
+	},
+	{
+		0b00001010,
+		0b00010001,
+		0b00010101,
+		0b00001110,
+	},
+	{
+		0b00000110,
+		0b00000101,
+		0b00000100,
+		0b00011111,
+	},
+	{
+		0b00010111,
+		0b00010101,
+		0b00010101,
+		0b00001001,
+	},
+	{
+		0b00001110,
+		0b00010101,
+		0b00010101,
+		0b00001000,
+	},
+	{
+		0b00010001,
+		0b00001001,
+		0b00000101,
+		0b00000011,
+	},
+	{
+		0b00001010,
+		0b00010101,
+		0b00010101,
+		0b00001010,
+	},
+	{
+		0b00000010,
+		0b00000101,
+		0b00000101,
+		0b00011110,
+	},
 };
 
 #define LED_PIN (32)
@@ -78,13 +89,9 @@ enum state {
 Adafruit_NeoPixel strip(COLS * ROWS, LED_PIN);
 Adafruit_SGP30 sgp;
 
-typedef uint32_t color_t;
-typedef uint32_t frame_t;
-typedef uint32_t millis_t;
-
-color_t co2_color, off, indigo, red, max_red;
-frame_t frame, anim_start_frame;
-millis_t next_frame;
+uint32_t co2_color, off, indigo, red, max_red;
+uint32_t frame, anim_start_frame;
+uint32_t next_frame;
 enum state cur_state, next_state;
 int co2_digits[5];
 
@@ -104,7 +111,7 @@ void show_digit(int x)
 	}
 
 	for (int row = 0; row < ROWS; row++) {
-		uint8_t m = font[ROWS * x + row];
+		uint8_t m = font[x][row];
 		for (int col = 0; col < COLS; col++) {
 			strip.setPixelColor(col + row * COLS, m & (1U << col) ? indigo : off);
 		}
@@ -184,12 +191,14 @@ void setup(void)
 		strip.show();
 		delay(3 * FRAME_TIME);
 	}
+
+	next_frame = millis() + FRAME_TIME;
 }
 
 void loop(void)
 {
-	millis_t t;
-	frame_t d;
+	uint32_t t;
+	uint32_t d;
 
 	strip.clear();
 
@@ -258,5 +267,5 @@ void loop(void)
 	}
 
 	strip.show();
-	delay(1);
+	delay(10);
 }
