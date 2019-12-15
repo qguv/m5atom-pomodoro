@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 #define MIN(X, Y) (((Y) < (X)) ? (Y) : (X))
 #define MAX(X, Y) (((Y) > (X)) ? (Y) : (X))
 

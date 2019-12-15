@@ -1,84 +1,24 @@
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_SGP30.h>
-#include <Wire.h>
 #include <color.h>
+#include "font.h"
 
 #define LED_PIN (32)
 #define COLS (8)
 #define ROWS (4)
 
-#define BRIGHTNESS (32)
+#define BRIGHTNESS (8)
 #define BEST_HUE (21845UL)
+#define MIDDLE_HUE (11000UL)
 #define WORST_HUE (0UL)
+/*
 #define BEST_CO2 (400UL)
 #define WORST_CO2 (2000UL)
+*/
 
 /* milliseconds */
 #define FRAME_TIME (16)
-
-static uint8_t font[10][4] = {
-	{
-		0b00001110,
-		0b00010001,
-		0b00010001,
-		0b00001110,
-	},
-	{
-		0b00010010,
-		0b00010001,
-		0b00011111,
-		0b00010000,
-	},
-	{
-		0b00011000,
-		0b00010101,
-		0b00010101,
-		0b00010010,
-	},
-	{
-		0b00001010,
-		0b00010001,
-		0b00010101,
-		0b00001110,
-	},
-	{
-		0b00000110,
-		0b00000101,
-		0b00000100,
-		0b00011111,
-	},
-	{
-		0b00010111,
-		0b00010101,
-		0b00010101,
-		0b00001001,
-	},
-	{
-		0b00001110,
-		0b00010101,
-		0b00010101,
-		0b00001000,
-	},
-	{
-		0b00010001,
-		0b00001001,
-		0b00000101,
-		0b00000011,
-	},
-	{
-		0b00001010,
-		0b00010101,
-		0b00010101,
-		0b00001010,
-	},
-	{
-		0b00000010,
-		0b00000101,
-		0b00000101,
-		0b00011110,
-	},
-};
 
 enum state {
 	STATE_NULL = 0,
@@ -90,38 +30,16 @@ enum state {
 Adafruit_NeoPixel strip(COLS * ROWS, LED_PIN);
 Adafruit_SGP30 sgp;
 
-uint32_t co2_color, off, indigo, red, max_red;
+uint32_t co2_color, ethanol_color;
 uint32_t frame, anim_start_frame;
 uint32_t next_frame;
 enum state cur_state, next_state;
 int co2_digits[5];
+int ethanol_digits[5];
 
-static bool sgp30_read(void)
-{
-	return sgp.IAQmeasure() && sgp.IAQmeasureRaw() && (sgp.eCO2 != 400 || sgp.TVOC != 0);
-}
+#define ALEN(A) (sizeof (A) / sizeof (*(A)))
 
-static void show_digit(int x)
-{
-	if (x < 0) {
-		return;
-	}
-
-	Serial.printf("%d:\r\n", x);
-	for (int row = 0; row < ROWS; row++) {
-		uint8_t n = font[x][row];
-		for (int col = 0; col < COLS; col++) {
-			bool show = n & (1U << (COLS - col - 1));
-			int i = col + row * COLS;
-			strip.setPixelColor(i, show ? co2_color : off);
-			Serial.printf("%s ", show ? "*" : " ");
-		}
-		Serial.println();
-	}
-	Serial.println();
-}
-
-void calc_digits(int *digits, int x)
+static void set_digits(int *digits, int x)
 {
 	int i = 0;
 
@@ -156,21 +74,44 @@ void calc_digits(int *digits, int x)
 	}
 }
 
+static bool sgp30_read(void)
+{
+	bool ok = sgp.IAQmeasure() && sgp.IAQmeasureRaw() && (sgp.eCO2 != 400 || sgp.TVOC != 0);
+	if (ok) {
+		set_digits(co2_digits, sgp.eCO2);
+		set_digits(ethanol_digits, sgp.rawEthanol);
+	} else {
+		for (int i = 0; i < ALEN(co2_digits); i++) co2_digits[i] = 0;
+		for (int i = 0; i < ALEN(ethanol_digits); i++) ethanol_digits[i] = 0;
+	}
+	return ok;
+}
+
+static void show_digit(int x, uint8_t font[10][ROWS], uint32_t color)
+{
+	if (x < 0) {
+		return;
+	}
+
+	for (int row = 0; row < ROWS; row++) {
+		uint8_t n = font[x][row];
+		for (int col = 0; col < COLS; col++) {
+			int i = col + row * COLS;
+			if (n & (1U << (COLS - col - 1))) {
+				strip.setPixelColor(i, color);
+			}
+		}
+	}
+}
+
 void setup(void)
 {
-	Serial.begin(9600);
-	Serial.println();
-	Serial.println("== begin ==");
 	frame = 0;
 	cur_state = STATE_READ;
 
 	strip.begin();
 
-	off = strip.Color(0, 0, 0);
-	indigo = strip.gamma32(strip.ColorHSV(52000, 255, BRIGHTNESS));
-	red = strip.gamma32(strip.ColorHSV(0, 255, BRIGHTNESS));
-	max_red = strip.Color(255, 0, 0);
-
+	uint32_t indigo = strip.Color(BRIGHTNESS / 4, 0, BRIGHTNESS);
 	while (!sgp.begin()) {
 			strip.clear();
 			strip.fill(indigo);
@@ -189,7 +130,7 @@ void setup(void)
 						: i == m[(f + 11) % 12] ? strip.Color(2, 2, 3)
 						: i == m[(f + 10) % 12] ? strip.Color(0, 1, 2)
 						: i == m[(f + 9) % 12] ? strip.Color(0, 0, 1)
-						: off);
+						: strip.Color(0, 0, 0));
 			}
 		}
 		strip.show();
@@ -201,8 +142,8 @@ void setup(void)
 
 void loop(void)
 {
-	uint32_t t;
-	uint32_t d, piece;
+	uint32_t t, d;
+	int subframe, digit_to_show;
 
 	if (cur_state == STATE_WAIT) {
 		t = millis();
@@ -217,10 +158,19 @@ void loop(void)
 	switch (cur_state) {
 	case STATE_READ:
 		if (sgp30_read()) {
-			Serial.println(sgp.eCO2);
-			calc_digits(co2_digits, sgp.eCO2);
-			uint16_t hue = map_hue(sgp.eCO2, BEST_CO2, WORST_CO2, BEST_HUE, WORST_HUE, false);
-			co2_color = strip.gamma32(strip.ColorHSV(hue, 255, BRIGHTNESS));
+			uint16_t co2_hue = sgp.eCO2 > 800
+				? WORST_HUE
+				: sgp.eCO2 > 600
+				? BEST_HUE / 2
+				: BEST_HUE;
+			co2_color = strip.ColorHSV(co2_hue, 255, BRIGHTNESS);
+			uint16_t ethanol_hue = sgp.rawEthanol > 19500
+				? WORST_HUE
+				: sgp.rawEthanol > 19000
+				? BEST_HUE / 2
+				: BEST_HUE;
+			ethanol_color = strip.ColorHSV(ethanol_hue, 255, BRIGHTNESS);
+
 			anim_start_frame = frame;
 			cur_state = STATE_DISPLAY;
 		}
@@ -233,19 +183,22 @@ void loop(void)
 		next_state = cur_state;
 		cur_state = STATE_WAIT;
 
-		/* some gaps between the numbers */
-		if (d % 32 < 28) {
+		digit_to_show = d / 32;
+		subframe = d % 32;
+
+		/* turn lights off between digits */
+		if (subframe == 29) {
 			strip.clear();
 			strip.show();
 
 		/* show a digit */
-		} else if ((piece = d / 32) < 5) {
+		} else if (subframe == 0 && digit_to_show < ALEN(ethanol_digits)) {
 			strip.clear();
-			show_digit(co2_digits[piece]);
+			show_digit(ethanol_digits[digit_to_show], font, ethanol_color);
 			strip.show();
 
 		/* read another one */
-		} else if (piece >= 8) {
+		} else if (digit_to_show >= 8) {
 			cur_state = STATE_READ;
 		}
 
