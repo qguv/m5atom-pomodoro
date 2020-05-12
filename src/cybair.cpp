@@ -8,8 +8,8 @@
 #define COLS (8)
 #define ROWS (4)
 
-#define POMO_WORK_MS (30 * 60 * 1000)
-#define POMO_BREAK_MS (8 * 60 * 1000)
+#define POMO_WORK_MS (47 * 60 * 1000)
+#define POMO_BREAK_MS (13 * 60 * 1000)
 #define POMO_CYCLE_MS (POMO_WORK_MS + POMO_BREAK_MS)
 #define POMO_ALERT_FLASH_ON_MS (20)
 #define POMO_ALERT_FLASH_OFF_MS (80)
