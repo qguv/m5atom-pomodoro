@@ -62,11 +62,12 @@ void setup(void)
 			return;
 		}
 
-    }
+	}
 
 	if (SPIFFS.exists(BREAKFILE_PATH)) {
 		SPIFFS.remove(BREAKFILE_PATH);
 		start_with_break = true;
+		was_working = false;
 
 	} else {
 		File f = SPIFFS.open(BREAKFILE_PATH, FILE_WRITE);
@@ -111,7 +112,6 @@ void loop(void)
 	uint32_t t = millis();
 	if (start_with_break) {
 		t += POMO_WORK_MS;
-		was_working = false;
 	}
 	t %= POMO_CYCLE_MS;
 
