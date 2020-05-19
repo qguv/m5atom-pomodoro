@@ -81,12 +81,13 @@ void loop(void)
 	/* button pressed: switch break/work */
 	if (on_delay >= ON_DELAY_THRESHHOLD) {
 		on_delay = 0;
-		was_working = !was_working;
 
 		t0 = t_raw;
 		if (was_working) {
 			t0 -= POMO_WORK_MS;
 		}
+
+		was_working = !was_working;
 	}
 
 	uint32_t t = (t_raw - t0) % POMO_CYCLE_MS;
