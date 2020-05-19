@@ -1,12 +1,12 @@
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
 #include <color.h>
-#include <FS.h>
-#include <SPIFFS.h>
 
-#define LED_PIN (32)
-#define COLS (8)
-#define ROWS (4)
+#define LED_PIN (27)
+#define BUTTON_PIN (39)
+#define COLS (5)
+#define ROWS (5)
+#define ON_DELAY_THRESHHOLD (10)
 
 #define POMO_WORK_MS (47 * 60 * 1000)
 #define POMO_BREAK_MS (13 * 60 * 1000)
@@ -15,69 +15,39 @@
 #define POMO_ALERT_FLASH_OFF_MS (80)
 #define POMO_ALERT_FLASHES (4)
 #define POMO_ALERT_BETWEEN_FLASHES_MS (400)
-#define POMO_ALERT_REPETITIONS (3)
-#define BREAKFILE_PATH "/start_with_break"
+#define POMO_ALERT_REPETITIONS (10)
 
 Adafruit_NeoPixel strip(COLS * ROWS, LED_PIN);
 
 bool was_working;
-bool start_with_break;
+uint32_t t0;
 int flash_color[3];
 int flashes;
 int flash_groups;
+int on_delay;
 
 void setup(void)
 {
-	start_with_break = false;
 	was_working = true;
+	t0 = 0;
 	flashes = 0;
 	flash_groups = 0;
-	flash_color[0] = 0xff;
-	flash_color[1] = flash_color[2] = 0;
+	on_delay = 0;
+
 	strip.begin();
 
-	bool needs_flash = !SPIFFS.begin(false);
-	if (needs_flash) {
-
-		// solid purple to show formatting
-		strip.clear();
-		for (int i = 0; i < ROWS * COLS; i++) {
-			strip.setPixelColor(i, 0x10, 0, 0x20);
-		}
-		strip.show();
-
-		// flash the filesystem
-		bool ok = SPIFFS.begin(true);
-
-		if (ok) {
-			flash_groups = 1;
-			flash_color[0] = 0;
-			flash_color[1] = 0x10;
-			flash_color[2] = 0;
-		} else {
-			flash_groups = -1;
-			flash_color[0] = 0x10;
-			flash_color[1] = 0;
-			flash_color[2] = 0;
-			return;
-		}
-
-	}
-
-	if (SPIFFS.exists(BREAKFILE_PATH)) {
-		SPIFFS.remove(BREAKFILE_PATH);
-		start_with_break = true;
-		was_working = false;
-
-	} else {
-		File f = SPIFFS.open(BREAKFILE_PATH, FILE_WRITE);
-		f.print("\n");
-		f.close();
-	}
+	pinMode(BUTTON_PIN, INPUT_PULLUP);
 }
 
 void loop(void)
 {
+	/* debounce */
+	if (digitalRead(BUTTON_PIN) == LOW) {
+		on_delay++;
+	} else if (on_delay > 0) {
+		on_delay--;
+	}
+
 	if (flashes) {
 		flashes--;
 
@@ -100,20 +70,26 @@ void loop(void)
 	}
 
 	if (flash_groups) {
-
 		if (flash_groups > 0)
 			flash_groups--;
-
 		flashes = POMO_ALERT_FLASHES + 1;
-
 		return;
 	}
 
-	uint32_t t = millis();
-	if (start_with_break) {
-		t += POMO_WORK_MS;
+	uint32_t t_raw = millis();
+
+	/* button pressed: switch break/work */
+	if (on_delay >= ON_DELAY_THRESHHOLD) {
+		on_delay = 0;
+		was_working = !was_working;
+
+		t0 = t_raw;
+		if (was_working) {
+			t0 -= POMO_WORK_MS;
+		}
 	}
-	t %= POMO_CYCLE_MS;
+
+	uint32_t t = (t_raw - t0) % POMO_CYCLE_MS;
 
 	const bool working = t < POMO_WORK_MS;
 	if (was_working != working) {
@@ -135,10 +111,9 @@ void loop(void)
 
 	for (int c = 0; c < COLS; c++) {
 		for (int r = 0; r < ROWS; r++) {
-			int i_anim = r + c * ROWS;
-			int i_strip = c + r * COLS;
-			if (i_anim <= completion) {
-				strip.setPixelColor(i_strip, working ? 6 : 0, 2, working ? 0 : 6);
+			int i = r + c * ROWS;
+			if (i <= completion) {
+				strip.setPixelColor(i, working ? 20 : 0, 6, working ? 0 : 20);
 			}
 		}
 	}

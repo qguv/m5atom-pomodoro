@@ -1,10 +1,10 @@
 .PHONY: all
 all:
-	platformio run -e featheresp32
+	platformio run -e m5stack-core-esp32
 
 .PHONY: upload
 upload:
-	platformio run -e featheresp32 -t upload
+	platformio run -e m5stack-core-esp32 -t upload
 
 .PHONY: test
 test:
