@@ -50,14 +50,14 @@ void setup(void)
 	SPIFFS.begin(true);
 	strip.begin();
 
+	strip.clear();
+	for (int i = 0; i < ROWS * COLS; i++)
+		strip.setPixelColor(i, 20, 0, 20);
+	strip.show();
+
 	pinMode(BUTTON_PIN, INPUT);
 
 	WiFiSettings.onWaitLoop = []() {
-		strip.clear();
-		for (int i = 0; i < ROWS * COLS; i++)
-			strip.setPixelColor(i, 20, 20, 0);
-		strip.show();
-
 		if (!digitalRead(BUTTON_PIN))
 			WiFiSettings.portal();
 
@@ -65,14 +65,7 @@ void setup(void)
 	};
 
 	WiFiSettings.onSuccess = []() {
-		strip.clear();
-		for (int i = 0; i < ROWS * COLS; i++)
-			strip.setPixelColor(i, 0, 20, 0);
-		strip.show();
-
 		setup_ota();
-
-		delay(200);
 	};
 
 	WiFiSettings.onPortal = []() {
@@ -80,11 +73,6 @@ void setup(void)
 	};
 
 	WiFiSettings.onPortalWaitLoop = []() {
-		strip.clear();
-		for (int i = 0; i < ROWS * COLS; i++)
-			strip.setPixelColor(i, 20, 0, 20);
-		strip.show();
-
 		ArduinoOTA.handle();
 	};
 
@@ -118,6 +106,7 @@ void loop(void)
 		if (!flashes)
 			delay(POMO_ALERT_BETWEEN_FLASHES_MS);
 
+		ArduinoOTA.handle();
 		return;
 	}
 
@@ -125,6 +114,7 @@ void loop(void)
 		if (flash_groups > 0)
 			flash_groups--;
 		flashes = POMO_ALERT_FLASHES + 1;
+		ArduinoOTA.handle();
 		return;
 	}
 
@@ -153,6 +143,7 @@ void loop(void)
 		flash_color[1] = 20;
 		flash_color[2] = working ? 0 : 60;
 
+		ArduinoOTA.handle();
 		return;
 	}
 
