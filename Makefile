@@ -1,10 +1,10 @@
 .PHONY: all
 all:
-	platformio run -e m5stack-core-esp32
+	platformio run -e serial
 
 .PHONY: upload
 upload:
-	platformio run -e m5stack-core-esp32 -t upload
+	platformio run -e serial -t upload
 
 .PHONY: test
 test:
