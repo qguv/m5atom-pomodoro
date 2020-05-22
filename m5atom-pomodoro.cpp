@@ -46,6 +46,7 @@ void setup(void)
 	flash_groups = 0;
 	on_delay = 0;
 
+	Serial.begin(115200);
 	SPIFFS.begin(true);
 	strip.begin();
 
