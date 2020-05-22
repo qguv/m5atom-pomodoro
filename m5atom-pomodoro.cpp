@@ -1,6 +1,10 @@
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
 #include <color.h>
+#include <SPIFFS.h>
+#include <WiFi.h>
+#include <WiFiSettings.h>
+#include <ArduinoOTA.h>
 
 #define LED_PIN (27)
 #define BUTTON_PIN (39)
@@ -18,6 +22,7 @@
 #define POMO_ALERT_REPETITIONS (10)
 
 Adafruit_NeoPixel strip(COLS * ROWS, LED_PIN);
+WiFiClient wificlient;
 
 bool was_working;
 uint32_t t0;
@@ -25,6 +30,13 @@ int flash_color[3];
 int flashes;
 int flash_groups;
 int on_delay;
+
+void setup_ota(void)
+{
+	ArduinoOTA.setHostname(WiFiSettings.hostname.c_str());
+	ArduinoOTA.setPassword(WiFiSettings.password.c_str());
+	ArduinoOTA.begin();
+}
 
 void setup(void)
 {
@@ -34,9 +46,48 @@ void setup(void)
 	flash_groups = 0;
 	on_delay = 0;
 
+	SPIFFS.begin(true);
 	strip.begin();
 
-	pinMode(BUTTON_PIN, INPUT_PULLUP);
+	pinMode(BUTTON_PIN, INPUT);
+
+	WiFiSettings.onWaitLoop = []() {
+		strip.clear();
+		for (int i = 0; i < ROWS * COLS; i++)
+			strip.setPixelColor(i, 20, 20, 0);
+		strip.show();
+
+		if (!digitalRead(BUTTON_PIN))
+			WiFiSettings.portal();
+
+		return 50;
+	};
+
+	WiFiSettings.onSuccess = []() {
+		strip.clear();
+		for (int i = 0; i < ROWS * COLS; i++)
+			strip.setPixelColor(i, 0, 20, 0);
+		strip.show();
+
+		setup_ota();
+
+		delay(200);
+	};
+
+	WiFiSettings.onPortal = []() {
+		setup_ota();
+	};
+
+	WiFiSettings.onPortalWaitLoop = []() {
+		strip.clear();
+		for (int i = 0; i < ROWS * COLS; i++)
+			strip.setPixelColor(i, 20, 0, 20);
+		strip.show();
+
+		ArduinoOTA.handle();
+	};
+
+	WiFiSettings.connect();
 }
 
 void loop(void)
@@ -121,5 +172,5 @@ void loop(void)
 
 	strip.show();
 
-	delay(10);
+	ArduinoOTA.handle();
 }
